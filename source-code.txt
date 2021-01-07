@@ -1,0 +1,154 @@
+//Credits: https://lastminuteengineers.com/creating-esp8266-web-server-arduino-ide/
+//Credits: https://randomnerdtutorials.com/esp32-static-fixed-ip-address-arduino-ide/
+//Credits: https://github.com/esp8266/Arduino/blob/master/libraries/ESP8266WebServer/README.rst
+//Credits: https://www.instructables.com/id/NodeMCU-LED-Static-IP/
+//Credits: http://www.martyncurrey.com/esp8266-and-the-arduino-ide-part-6-javascript-and-ajax/
+//Credits: https://circuits4you.com/2018/02/04/esp8266-ajax-update-part-of-web-page-without-refreshing/
+
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+
+//WIFI Parameters
+const char* ssid = "MMR 2.0"; // ssid
+const char* password = "R3m@$t3red12";// password
+IPAddress ip(192, 168, 1, 100); //set static ip
+IPAddress gateway(192, 168, 1, 1); //set getteway
+IPAddress subnet(255, 255, 255, 0);//set subnet
+ESP8266WebServer server(80);
+
+//PIN Declarations
+uint8_t LED1pin = D0;
+uint8_t LED2pin = LED_BUILTIN;
+bool LED1status = LOW;
+bool LED2status = LOW;
+
+//Variables
+String request = "";
+String header = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n";
+
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  pinMode(LED1pin, OUTPUT);
+  pinMode(LED2pin, OUTPUT);
+
+  //connect to your local wi-fi network
+  WiFi.config(ip, gateway, subnet);
+  WiFi.begin(ssid, password);
+  Serial.println("Connecting to ");
+  Serial.println(ssid);
+
+  //check wi-fi is connected to wi-fi network
+  //alternately blink the LEDs while still connecting
+  while (WiFi.status() != WL_CONNECTED) {
+  
+    LED1status = not(LED1status);
+    digitalWrite(LED1pin, LED1status);
+  
+    digitalWrite(LED2pin, LED2status);
+    LED2status = not(LED2status);
+  
+    delay(100); //wait for 0.1s before checking again
+    Serial.println("Connecting...");
+  }
+
+  Serial.println("");
+  Serial.println("WiFi connected!");
+  Serial.print("Got IP: ");
+  Serial.println(WiFi.localIP());
+
+  server.on("/", handle_OnConnect);
+  server.on("/LED_ON", TurnLED_ON);
+  server.on("/LED_OFF", TurnLED_OFF);
+  server.onNotFound(handle_NotFound);
+
+  server.begin();
+  digitalWrite(LED1pin, LOW);
+  digitalWrite(LED2pin, LOW);
+}
+
+void loop() {
+  server.handleClient();
+  if(LED1status)
+  {digitalWrite(LED1pin, HIGH);}
+  else
+  {digitalWrite(LED1pin, LOW);}
+  
+  if(LED2status)
+  {digitalWrite(LED2pin, HIGH);}
+  else
+  {digitalWrite(LED2pin, LOW);}
+}
+
+void handle_OnConnect() {
+  LED1status = HIGH;
+  LED2status = HIGH;
+  server.send(200, "text/html", SendHTML(LED1status,LED2status)); 
+}
+
+void TurnLED_ON() {
+  LED1status = LOW;
+  server.send(200, "text/plane","LED1 Status: ON");
+}
+
+void TurnLED_OFF() {
+  LED1status = HIGH;
+  server.send(200, "text/plane","LED1 Status: OFF");
+}
+
+void handle_NotFound(){
+  server.send(404, "text/plain", "Not found");
+}
+
+
+String SendHTML(uint8_t led1stat,uint8_t led2stat){
+
+String HTML_Body = R"=====(
+<!DOCTYPE html>
+<html>
+<head>
+<meta name='viewport' content='width=device-width, initial-scale=1.0'/>
+<title>LED Control</title>
+<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}
+body{margin-top: 50px;} h1 {color: #444444;margin: 50px auto 30px;} h3 {color: #444444;margin-bottom: 50px;}
+.button {display:block; width:80px; background-color:#1abc9c; border:none; color:white; padding:13px 30px; text-decoration:none; font-size:12px; margin:0px auto 35px; cursor:pointer; border-radius:4px;}
+.buttonLED1 {background-color:green;}
+.buttonLED1:active {background-color:red;}
+p{font-size:14px; color:#888; margin-bottom:10px;}
+</style>
+</head>
+
+<body>
+<h2>LED Control</h2>
+
+<p id='led1Status'>LED1 Status: OFF</p>
+<p id='button1Status' class='button buttonLED1' onmousedown='Button1Pressed()' onmouseup='Button1Released()'>Press to turn ON</p>
+
+<script>
+function Button1Pressed(){
+  document.getElementById('button1Status').innerHTML = 'Release to turn OFF';
+  ajaxLoad('LED_ON');
+}
+       
+function Button1Released(){ 
+    document.getElementById('button1Status').innerHTML = 'Press to turn ON';
+  ajaxLoad('LED_OFF');
+}
+
+function ajaxLoad(ajaxURL){
+  var xhttp = new XMLHttpRequest();
+  xhttp.onreadystatechange = function(){
+    if (this.readyState == 4 && this.status == 200){
+      document.getElementById('led1Status').innerHTML = this.responseText;
+    }
+  };
+  xhttp.open("GET", ajaxURL, true);
+  xhttp.send();
+}
+</script>
+</body>
+</html>
+)=====";
+
+return HTML_Body;a
+}
